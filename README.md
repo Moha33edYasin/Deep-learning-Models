@@ -1,14 +1,16 @@
 # What is it?
-A *neural network framework* implemented entirely from scratch, including a *multi-layer perceptron (MLP)* and *convolutional neural network (CNN)*. The project recreates core deep learning components such as kernels, pooling layers, dense/flatten transitions, channel handling, optimizers, activation functions, and parameter initialization strategies. The framework emphasizes modularity, transparency, and user control.  
+A *neural network framework* implemented entirely from scratch, featuring both a *Multi-Layer Perceptron (MLP)* and a *Convolutional Neural Network (CNN)*.  
+
+The project reconstructs fundamental deep learning components, including convolution kernels, pooling operations, dense-to-flatten transitions, channel handling, optimizers, activation functions, and parameter initialization strategies. The framework is designed with an emphasis on modularity, transparency, and full user control, enabling direct interaction with the underlying learning mechanics.  
 
 # Why? 
 To develop a first-principles understanding of neural network mechanics rather than relying on high-level libraries.  
-
-> [!IMPORTANT]  
-> Crucial information necessary for users to succeed.  
+Re-implementing core mechanisms provided deeper insight into how learning dynamics, gradient flow, and architectural design choices interact.  
 
 # Next step:  
-Extending the system toward an intelligent agent capable of interpreting human voice commands to drive actions in a 2D environment.  
+Extending the system toward an intelligent agent capable of interpreting human voice commands to mapping them into actions within a 2D environment.
+> [!Declaration]  
+> Contribution will be appreciated.  
 
 ## Usage
 
@@ -24,8 +26,8 @@ To use NN model, call `NeuralNetwork()` and configure your structure.
 ```python
 nn = NeuralNetwork(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
                    Layer(784),
-                   Layer(16, RelU),
-                   Layer(16, RelU),
+                   Layer(16, ReLU),
+                   Layer(16, ReLU),
                    Layer(10, softmax),
                    cost= CCE, # CCE means Categorical Cross-Entropy
                    optimizer= Adam(β1=0.9, β2=0.99, lr=0.05)
