@@ -4,6 +4,9 @@ A *neural network framework* implemented entirely from scratch, including a *mul
 # Why? 
 To develop a first-principles understanding of neural network mechanics rather than relying on high-level libraries.  
 
+> [!IMPORTANT]  
+> Crucial information necessary for users to succeed.  
+
 # Next step:  
 Extending the system toward an intelligent agent capable of interpreting human voice commands to drive actions in a 2D environment.  
 
