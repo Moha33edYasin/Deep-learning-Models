@@ -31,7 +31,7 @@ nn = NeuralNetwork(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
                    Layer(16, ReLU),
                    Layer(16, ReLU),
                    Layer(10, softmax),
-                   cost= CCE, # CCE means Categorical Cross-Entropy
+                   cost= CCE, # Categorical Cross-Entropy
                    optimizer= Adam(β1=0.9, β2=0.99, lr=0.05)
                    )
 ```
@@ -39,17 +39,19 @@ nn = NeuralNetwork(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 To train the model, prepare an input-field set of data and its output field, and call `learn()`, which return the the **loss** and **accuracy** across all **epochs** of the training process.  
 
 👉 *Example:*   
+> [!Note]
+> In this case, `xtrain` and `ytrain` are the input and expected output fields
 
 ```python
-# Note: in this case `xtrain` and `ytrain` are the input and expected output fields
 loss1, acc1 = nn.learn(xtrain, ytrain, ttrain, lr=0.01, epochs=epochs, batch_size=batch_size)
 ```
 
 To test the model, prepare an input-field set of data and its output field other than those used in training, and call `test()`, which return the the **loss** and **accuracy** across all **batches** of the testing dataset.  
 
 👉 *Example:*  
+> [!Note]
+> In this case, `xtest` and `ytest` are the input and expected output fields
 
 ```python
-# Note: in this case `xtest` and `ytest` are the input and expected output fields
 loss2, acc2 = nn.test(xtest, ytest, ttest, batch_size)
 ```
