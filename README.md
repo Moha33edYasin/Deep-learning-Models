@@ -23,12 +23,12 @@ To use NN model, call `NeuralNetwork()` and configure your structure.
 
 👉 *Example:*  
 > [!Note]
-> - Here, the list of the numbers is all possible outcomes (for MNIST).  
-> - The first layer has 784 neuron, and softmax is applied on the last layer.  
-> - Two hidden layers with 16 neurons each and ReLU as an activiation.  
-> - Cost method used is Categorical Cross-Entropy for multiple outcomes.  
-> - Lastly, I used adam optimizer to elevate the accuracy.  
-> - You may add parameter initialization method to each component, the default is *golort_uniform* for weights and *zeros* for biases.  
+> - Here, the list of the numbers is all possible outcomes (for *MNIST*).  
+> - The first layer has $784$ neuron, and `softmax` is applied on the last layer.  
+> - Two hidden layers with $16$ neurons each and `ReLU` as an **activiation**.  
+> - Cost method used is **Categorical Cross-Entropy** for multiple outcomes.  
+> - Lastly, **adam optimization** for elevating the accuracy.  
+> - You may add parameter initialization method to each component, the default is `golort_uniform` for weights and `zeros` for biases.  
 
 ```python
 nn = NeuralNetwork(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
