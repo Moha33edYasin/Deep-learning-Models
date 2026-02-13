@@ -45,7 +45,8 @@ To train the model, prepare an input-field set of data and its output field, and
 
 👉 *Example:*   
 > [!Note]
-> In this case, `xtrain` and `ytrain` are the input and expected output fields
+> In this case, `xtrain` and `ytrain` are the input and expected output fields, and `ttrain` is the targerted outcome value from the training data points.
+> Ex. `xtrain` is 4x4 an array of pixels of multiple images, `ytrain` contain the expected firing pattern in the last layer for each input, and `ttrain` is the classes of these images.  
 
 ```python
 loss1, acc1 = nn.learn(xtrain, ytrain, ttrain, lr=0.01, epochs=epochs, batch_size=batch_size)
@@ -55,7 +56,8 @@ To test the model, prepare an input-field set of data and its output field other
 
 👉 *Example:*  
 > [!Note]
-> In this case, `xtest` and `ytest` are the input and expected output fields
+> In this case, `xtest` and `ytest` are the input and expected output fields, and `ttest` is the targerted outcome value from the testing data points.
+> Ex. `xtest` is 4x4 an array of pixels of multiple images, `ytest` contain the expected firing pattern in the last layer for each input, and `ttest` is the classes of these images.
 
 ```python
 loss2, acc2 = nn.test(xtest, ytest, ttest, batch_size)
