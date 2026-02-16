@@ -207,10 +207,10 @@ class NeuralNetwork:
     def approx_gradient_w(self, i, j, k, x, δ=0.001):
         # calculating the gradient with respect to a particular weight would be like:      
         # L(w0, ..., wj, ..., wk, ..., y) = C((f(f(f(...)*wj + ... + b)*wk + ... + b) + (...) - y)
-        # Yup. This is so scary (so crazy)
+        # Yup. This is so scary (and so crazy)
         # nor my (or your) computer will hold on
         
-        # So, Newton formula of high schools is safer
+        # So, Newton formula from high school is safer
 
         l = self.params[i + 1]
         self.feedforward(x)
