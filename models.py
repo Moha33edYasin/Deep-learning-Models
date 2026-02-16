@@ -1,4 +1,3 @@
-from __init__ import convolve
 import numpy as np
 from activations import derivatives, ReLU, glorot_uniform, zeros
 

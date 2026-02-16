@@ -1,6 +1,6 @@
 # neural network 
 from models import *
-from activitions import *
+from activations import *
 
 # for plotting
 import matplotlib.pyplot as plt
@@ -34,13 +34,16 @@ print("[mnist] is fetched.")
 
 # neural network setup
 nn = ConvolutionalNeuralNetwork(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-                   Kernel(3, 1, 1),
+                   Kernel(5, 3, 2),
+                   Pooling(3),
+                   Kernel(5, 3, 2),
+                   Pooling(3),
                    Layer(),
                    Layer(16, ReLU),
                    Layer(16, ReLU),
                    Layer(10, softmax),
                    cost= CCE,
-                   optimizer= Adam(β1=0.9, β2=0.99, lr=0.05)
+                   optimizer= Adam(beta1=0.9, beta2=0.99, lr=0.05)
                    )
 
 # data split

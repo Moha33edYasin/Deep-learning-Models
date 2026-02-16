@@ -58,10 +58,10 @@ def CCE(o, y):
 
 # optimizers
 class Momentem():
-    def __init__(self, β=0.9, lr=0.1):
+    def __init__(self, beta=0.9, lr=0.1):
         self.NL = 1
         self.lr = lr
-        self.β = β
+        self.β = beta
 
     @property
     def N(self):
@@ -80,10 +80,10 @@ class Momentem():
         return self.m_w[l] * self.lr, self.m_b[l] * self.lr 
 
 class Nestrov_A():
-    def __init__(self, β=0.9, lr=0.1):
+    def __init__(self, beta=0.9, lr=0.1):
         self.NL = 1
         self.lr = lr
-        self.β = β
+        self.β = beta
     
     @property
     def N(self):
@@ -132,10 +132,10 @@ class AdaGrad():
         return dW, dB
 
 class AdaDelta():
-    def __init__(self, β=0.9, lr=0.1):
+    def __init__(self, beta=0.9, lr=0.1):
         self.NL = 1
         self.lr = lr
-        self.β = β
+        self.β = beta
     
     @property
     def N(self):
@@ -171,10 +171,10 @@ class AdaDelta():
         return dW, dB
 
 class RMSProp():
-    def __init__(self, β=0.99, lr=0.1):
+    def __init__(self, beta=0.99, lr=0.1):
         self.NL = 1
         self.lr = lr
-        self.β = β
+        self.β = beta
     
     @property
     def N(self):
@@ -198,10 +198,10 @@ class RMSProp():
         return dW, dB
 
 class AdaMax():
-    def __init__(self, β1=0.9, β2=0.99, lr=0.1):
+    def __init__(self, beta1=0.9, beta2=0.99, lr=0.1):
         self.NL = 1
         self.t, self.lr = 0, lr
-        self.β1, self.β2 = β1, β2
+        self.β1, self.β2 = beta1, beta2
     
     @property
     def N(self):
@@ -239,10 +239,10 @@ class AdaMax():
         return dW, dB
 
 class Adam():
-    def __init__(self, β1=0.9, β2=0.99, lr=0.1):
+    def __init__(self, beta1=0.9, beta2=0.99, lr=0.1):
         self.NL = 1
         self.t, self.lr = 0, lr
-        self.β1, self.β2 = β1, β2
+        self.β1, self.β2 = beta1, beta2
     
     @property
     def N(self):
@@ -279,10 +279,10 @@ class Adam():
         return dW, dB
 
 class nAdam():
-    def __init__(self, β1=0.9, β2=0.99, lr=0.1):
+    def __init__(self, beta1=0.9, beta2=0.99, lr=0.1):
         self.NL = 1 
         self.t, self.lr = 0, lr
-        self.β1, self.β2 = β1, β2
+        self.β1, self.β2 = beta1, beta2
     
     @property
     def N(self):
@@ -320,10 +320,10 @@ class nAdam():
         return dW, dB
 
 class AMSGrad():
-    def __init__(self, β1=0.9, β2=0.99, lr=0.1):
+    def __init__(self, beta1=0.9, beta2=0.99, lr=0.1):
         self.NL = 1
         self.lr = lr
-        self.β1, self.β2 = β1, β2
+        self.β1, self.β2 = beta1, beta2
     
     @property
     def N(self):
