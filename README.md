@@ -27,7 +27,7 @@ Instantiate a neural network and define the architecture:
 
 ```python
 nn = NeuralNetwork(
-    ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+    ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'], # all possible outcomes
     Layer(784),
     Layer(16, ReLU),
     Layer(16, ReLU),
