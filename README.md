@@ -2,7 +2,7 @@
 
 A **neural network framework** implemented entirely from scratch, featuring both a **Multi-Layer Perceptron (MLP)** and a **Convolutional Neural Network (CNN)**.  
   
-The project reconstructs fundamental deep learning components, including _convolution kernels, pooling operations, dense-to-flatten transitions, channel handling, optimizers, activation functions, and parameter initialization strategies_.  
+The project reconstructs fundamental deep learning components, including _convolution kernels, pooling operations, dense-to-convolution auto transitions, channel handling, optimizers, activation functions, and parameter initialization strategies_.  
 
 The framework emphasizes **modularity, transparency, and user control**, enabling direct inspection and control of the learning mechanics.  
 
@@ -10,10 +10,6 @@ The framework emphasizes **modularity, transparency, and user control**, enablin
 
 To develop a first-principles understanding of neural network behavior rather than relying on high-level libraries.  
 Re-implementing core mechanisms provides deeper insight into learning dynamics, gradient flow, and architectural design trade-offs.  
-
-# Next Steps
-
-Extending the framework toward an intelligent agent capable of interpreting human voice commands and mapping them into actions within a 2D environment.  
 
 # Usage
 
@@ -46,3 +42,5 @@ Evaluate on test data:
 ```python
 loss2, acc2 = nn.test(xtest, ytest, ttest, batch_size=325)
 ```
+[!Note]
+The above structure achieved 0.94 testing accuarcy on MNIST.
