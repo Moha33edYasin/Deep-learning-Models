@@ -42,5 +42,5 @@ Evaluate on test data:
 ```python
 loss2, acc2 = nn.test(xtest, ytest, ttest, batch_size=325)
 ```
-[!Note]
-The above structure achieved 0.94 testing accuarcy on MNIST.
+> [!NOTE]
+> The above structure achieved 0.94 testing accuarcy on MNIST.
