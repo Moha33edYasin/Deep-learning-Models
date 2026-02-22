@@ -20,6 +20,9 @@ def glorot_uniform(n_in, n_out, rng=np.random):
 def zeros(n_out):
     return np.zeros((n_out,))
 
+def zeros_map(x, y):
+    return np.zeros((x, y))
+
 # activations
 def sigmoid(vec):
    return 1 / (1 + np.exp(-vec))
@@ -40,10 +43,14 @@ def softmax_derivative(vec):
     return dS
 
 def ReLU(vec):
-    return np.array([max(0, node) for node in vec], dtype=vec.dtype)
+    if isinstance(vec[0], (np.number, float, int)):
+        return np.array([max(0, node) for node in vec], dtype=vec.dtype)
+    return np.array([ReLU(r) for r in vec], dtype=float)
 
 def Leaky_RelU(vec):
-    return np.array([max(0.1 * node, node) for node in vec], dtype=vec.dtype)
+    if isinstance(vec[0], (np.number, float, int)):
+        return np.array([max(0.1 * node, node) for node in vec], dtype=vec.dtype)
+    return np.array([ReLU(r) for r in vec])
 
 # Loss functions
 def MSE(o, y):

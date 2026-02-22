@@ -19,7 +19,7 @@ x = x / np.max(x)
 
 x, t = shuffle(x, t, random_state=42)
 
-# reshape to 2D
+# to 2D
 x = x.reshape((70000, 28, 28))
 
 # converted it for one-hot datapoints
@@ -33,17 +33,16 @@ y = np.array(y, dtype=float)
 print("[mnist] is fetched.")
 
 # neural network setup
-nn = ConvolutionalNeuralNetwork(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-                   Kernel(5, 3, 2),
+nn = ConvolutionalNeuralNetwork(
+                   ConvLayer(branches=3, size=5, stride=2, padding=1),
                    Pooling(3),
-                   Kernel(5, 3, 2),
-                   Pooling(3),
-                   Layer(),
-                   Layer(16, ReLU),
-                   Layer(16, ReLU),
+                   Flatten(),
+                  #  Layer(16, ReLU),
+                  #  Layer(16, ReLU),
                    Layer(10, softmax),
+                   possible_outcomes=['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
                    cost= CCE,
-                   optimizer= Adam(beta1=0.9, beta2=0.99, lr=0.05)
+                #    optimizer= Adam(beta1=0.9, beta2=0.99, lr=0.05)
                    )
 
 # data split
