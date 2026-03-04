@@ -26,7 +26,7 @@ mlp = nn(
         Dense(16, ReLU),
         Dense(10, softmax),
         possible_outcomes=['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-        cost= CCE,
+        cost= CCE, # cross categorical entropy
         optimizer= Adam(beta1=0.9, beta2=0.99, lr=0.05)
     )
 ```
