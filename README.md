@@ -14,7 +14,7 @@ Re-implementing core mechanisms provides deeper insight into learning dynamics, 
 Import the modules:  
 ```python
 from deep_learning.models import *
-from deep_learning.activations import *
+from deep_learning.methods import *
 ```
 
 Instantiate a neural network and define the architecture:  
