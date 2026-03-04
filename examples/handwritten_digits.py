@@ -1,12 +1,12 @@
-# neural network 
+# for neural network configuration
 from models import *
-from activations import *
+from methods import *
 
 # for plotting
 import matplotlib.pyplot as plt
 import numpy as np
 
-# datasets
+# for importing the dataset
 from sklearn.datasets import fetch_openml
 from sklearn.utils import shuffle
 
@@ -33,17 +33,18 @@ y = np.array(y, dtype=float)
 print("[mnist] is fetched.")
 
 # neural network setup
-nn = ConvolutionalNeuralNetwork(
-                   ConvLayer(branches=3, size=5, stride=2, padding=1),
-                   Pooling(3),
-                   Flatten(),
-                  #  Layer(16, ReLU),
-                  #  Layer(16, ReLU),
-                   Layer(10, softmax),
-                   possible_outcomes=['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-                   cost= CCE,
-                #    optimizer= Adam(beta1=0.9, beta2=0.99, lr=0.05)
-                   )
+cnn = nn(
+            # Conv(branches=1, size=5, stride=2, padding=1),
+            # Conv(branches=1, depth=1, size=7, stride=3, padding=2),
+            # Pooling(3),
+            Flatten(),
+            Dense(16, ReLU),
+            Dense(16, ReLU),
+            Dense(10, softmax),
+            possible_outcomes=['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+            cost= CCE,
+            optimizer= Adam(beta1=0.9, beta2=0.99, lr=0.05)
+            )
 
 # data split
 n = int(0.85 * len(x))
@@ -52,24 +53,25 @@ xtrain, ytrain, ttrain, xtest, ytest, ttest = x[:n], y[:n], t[:n], x[n:], y[n:],
 
 # train
 print('training...')
-loss1, acc1 = nn.learn(xtrain, ytrain, ttrain, lr=0.01, epochs=epochs, batch_size=batch_size)
+loss1, acc1 = cnn.learn(xtrain, ytrain, ttrain, epochs=epochs, batch_size=batch_size)
 
 # test
 print("testing...")
-loss2, acc2 = nn.test(xtest, ytest, ttest, batch_size)
+loss2, acc2 = cnn.test(xtest, ytest, ttest, batch_size)
 
+print("overall_accuarcy:", np.round(sum(acc2) / len(acc2), 2))
 # plots
-t_axis = [i for i in range(epochs)]
+t_axis = [i for i in range(len(xtest) // batch_size + 10)]
 l_axis = [i for i in range(len(acc2))]
 
 plt.axis([0,  epochs - 0.5, 0, 110])
 plt.xticks(t_axis)
-plt.plot(t_axis, acc1, color='blue', label='traning_accuracy')
-plt.plot(t_axis, loss1, color='blue', label='traning_accuracy')
+# plt.plot(t_axis, acc1, color='blue', label='traning_accuracy')
+# plt.plot(t_axis, loss1, color='blue', label='traning_accuracy')
 plt.plot(l_axis, acc2, color='red', label='testing_accuracy')
 plt.plot(l_axis, loss2, color='orange', label='testing_loss', linestyle='--')
 
-plt.xlabel("Number of iterations")
+plt.xlabel("Batch")
 plt.ylabel("Percentage")
 plt.title("Model Learning")
 plt.show()
@@ -77,5 +79,5 @@ plt.show()
 # single-input test
 while True:
     i = int(input(f'index({len(ttest) - 1}):'))
-    nn.feedforward(xtest[i])
-    print(nn.output(), ttest[i])
+    cnn.feedforward(xtest[i])
+    print(cnn.output(), ttest[i])
