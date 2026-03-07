@@ -180,7 +180,7 @@ class nn():
         self.layers = [s for s in sequence if isinstance(s, (Dense, Conv))]
         self.n_layers = len(self.layers)
 
-        # inform the optimizer of the CNN's structure by
+        # inform the optimizer of the NN's structure by
         # passing the number of stages to the optimizer
         if optimizer != None:
             optimizer.N = self.n_stages
