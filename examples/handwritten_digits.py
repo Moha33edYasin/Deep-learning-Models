@@ -15,14 +15,13 @@ print('fetching...')
 mnist = fetch_openml('mnist_784', version=1, return_X_y=True, as_frame=False)
 
 x, t = mnist
-x = x / np.max(x)
+x = x / np.max(x) # normalization
 
 x, t = shuffle(x, t, random_state=42)
 
-# to 2D
-x = x.reshape((70000, 28, 28))
+x = x.reshape((70000, 28, 28)) # to 2D
 
-# converted it for one-hot datapoints
+# convert the dataset into one-hot datapoints
 y = []
 for n in t:
     nodes = [0] * 10
@@ -33,7 +32,7 @@ y = np.array(y, dtype=float)
 print("[mnist] is fetched.")
 
 # neural network setup
-cnn = nn(
+mlp = nn(
             # Conv(branches=1, size=5, stride=2, padding=1),
             # Conv(branches=1, depth=1, size=7, stride=3, padding=2),
             # Pooling(3),
@@ -53,11 +52,11 @@ xtrain, ytrain, ttrain, xtest, ytest, ttest = x[:n], y[:n], t[:n], x[n:], y[n:],
 
 # train
 print('training...')
-loss1, acc1 = cnn.learn(xtrain, ytrain, ttrain, epochs=epochs, batch_size=batch_size)
+loss1, acc1 = mlp.learn(xtrain, ytrain, ttrain, epochs=epochs, batch_size=batch_size)
 
 # test
 print("testing...")
-loss2, acc2 = cnn.test(xtest, ytest, ttest, batch_size)
+loss2, acc2 = mlp.test(xtest, ytest, ttest, batch_size)
 
 print("overall_accuarcy:", np.round(sum(acc2) / len(acc2), 2))
 # plots
@@ -77,7 +76,7 @@ plt.title("Model Learning")
 plt.show()
 
 # single-input test
-while True:
+while isinstance(i, int) and i < len(xtest):
     i = int(input(f'index({len(ttest) - 1}):'))
-    cnn.feedforward(xtest[i])
-    print(cnn.output(), ttest[i])
+    mlp.feedforward(xtest[i])
+    print(mlp.output(), ttest[i])
