@@ -1,166 +1,340 @@
 import numpy as np
-from methods import derivatives, ReLU, glorot_uniform, zeros, zeros_map
+from methods import derivatives, ReLU, glorot_uniform, zeros, zeros_map 
+from methods import align_and_pad, cross_corr, cross_corr_transposed, conv_transposed
 
+# Store 1D | 2D | 3D tensor 
+class Input():
+    def __init__(self, a):
+        self.previous = None
+        self.a = a
+        self.z = np.array([])
+        self.df = None
+
+# 3D | 2D | 1D tensor --> 3D | 2D | 1D tensor
 class Reshape():
     def __init__(self, shape=-1):
+        self.previous = None
         self.shape = shape
         self.original_shape = None
+        self.df = None
         self.a = np.array([])
         self.z = np.array([])
     
-    def forward_pass(self, a, z=np.empty((1,))):
-        self.original_shape = a.shape
-        self.a = a.reshape(self.shape)
-        self.z = z.reshape(self.shape)
+    # 3D | 2D | 1D tensor --> 3D | 2D | 1D tensor
+    def forward_pass(self, previous=None):
+        self.previous = previous
+        self.original_shape = previous.a.shape
+        self.df = previous.df
+        self.a = previous.a.reshape(self.shape)
+        self.z = previous.z.reshape(self.shape)
         return self.a
 
-    def backward_pass(self, dz):
-        return dz.reshape(self.original_shape)
+    # 3D | 2D | 1D tensor <-- 3D | 2D | 1D tensor
+    def backward_pass(self, dz_next):
+        return dz_next.reshape(self.original_shape)
 
+# 3D | 2D tensor --> 1D tensor
 class Flatten():
     def __init__(self):
+        self.previous = None
         self.original_shape = None
+        self.df = None
         self.n = 0
         self.a = np.array([])
         self.z = np.array([])
     
-    def forward_pass(self, a, z=np.empty((1,))):
-        self.original_shape = a.shape
-        self.a = a.flatten()
-        self.z = z.flatten()
+    # 3D | 2D tensor --> 1D tensor
+    def forward_pass(self, previous):
+        self.previous = previous
+        self.original_shape = previous.a.shape
+        self.df = previous.df
+        # self.a = np.hstack([a.flatten() for a in A])
+        # self.z = np.hstack([z.flatten() for z in Z])
+        self.a = previous.a.flatten()
+        self.z = previous.z.flatten()
         self.n = self.a.size
         return self.a
     
-    def backward_pass(self, dz):
-        return dz.reshape(self.original_shape)
+    # 3D | 2D tensor <-- 1D tensor
+    def backward_pass(self, dz_next):
+        return dz_next.reshape(self.original_shape)
 
+# 1D tensor --> 1D tensor
 class Dense():
     def __init__(self, n=0, activation=None, initializer_w=glorot_uniform, initializer_b=zeros):
         self.n = n
+        self.previous = None
         self.a = np.array([])
-        if activation != None:
-            self.w = np.array([])
-            self.b = np.array([])
-            self.z = np.array([])
-            self.f = activation
-            self.df = derivatives[activation]
-            self.f_w = initializer_w
-            self.f_b = initializer_b
-    
-class Conv():
-    def __init__(self, branches=1, depth=1, size=1, stride=1, padding=0, activation=ReLU, initializer_w=glorot_uniform, initializer_b=zeros_map):
-        self.branches = branches
-        self.depth = depth
-        self.size = size
-        self.stride = stride
-        self.padding = padding
+        self.w = np.array([])
+        self.b = np.array([])
+        self.z = np.array([])
+        self.f = activation
+        self.df = derivatives[activation]
+        self.f_w = initializer_w
+        self.f_b = initializer_b
+
+    # 1D tensor --> 1D tensor
+    def forward_pass(self, previous):
+        self.previous = previous
+
+        # initialize weights and baises
+        if self.w.size == 0:
+            # register these new pramaters
+            self.w, self.b = self.f_w(self.previous.n, self.n), self.f_b(self.n)
         
+        # calculate activations
+        self.z = self.w @ previous.a + self.b
+        self.a = self.f(self.z)
+        return self.a
+
+    def calculate_gradient(self, dz):
+        # calculate the loss gradient with respect to 
+        # the weights and the biases for dense layer
+        dw = np.outer(dz, self.previous.a)
+        db = dz
+        return dw, db
+
+    # 1D tensor <-- 1D tensor
+    def backward_pass(self, dz_next):
+        da = self.w.T @ dz_next
+        return da * self.previous.df(self.previous.z)
+
+# 3D tensor --> 3D tensor
+class Conv():
+    def __init__(self, depth=1, kernels=[], stride=1, padding=0, activation=ReLU, initializer_w=glorot_uniform, initializer_b=zeros_map):
+        self.depth = depth
+        self.kernels = kernels
+        self.stride = stride
+        self.pad = padding
+        self.pad_width = padding
+
+        # store the previous element to form a hierarchy 
+        self.previous = None
+
         # functions
         self.f = activation
         self.df = derivatives.get(activation)
         self.f_b = initializer_b
         
         # kernels
-        self.w = [[initializer_w(size, size) for _ in range(depth)] for _ in range(branches)]
+        self.w = [[initializer_w(k[0], k[1]) for _ in range(depth)] for k in kernels]
         
         # other parameters
         self.b = np.array([])
-        self.a = np.array([])
         self.z = np.array([])
-
-    def forward_pass(self, a):
-        size_x, size_y = a.shape
-        
-        choices_pad_x = size_x - self.size + 2 * self.padding
-        choices_pad_y = size_y - self.size + 2 * self.padding
-
-        x = choices_pad_x // self.stride + 1
-        y = choices_pad_y // self.stride + 1
-
-        self.b = [self.f_b(x, y) for _ in range(self.branches)]
-        
-        for kernel, b in zip(self.w, self.b):
-            z = b
-            for w in kernel:
-                # add a padding box - up and down, left and right
-                if self.padding:
-                    a = np.pad(a, pad_width=self.padding, mode="constant")
-
-                feature_map = []
-                # do convolution between the array of data and the kernels' weights
-                for i in range(0, choices_pad_y, self.stride):
-                    row = []
-                    for j in range(0, choices_pad_x, self.stride):
-                        z_dash = a[i : i + self.size, j : j + self.size] * w
-                        row.append(np.sum(z_dash))
-                    feature_map.append(row)
-
-                feature_map = np.array(feature_map, dtype=float)
-                z += feature_map
-
-            self.z = z
-        try:
-            self.a = self.f(self.z) # apply non-linearity
-            return self.a
-        except:
-            raise ModuleNotFoundError("There is no non-linearity function given.")
-
-class Pooling():
-    def __init__(self, size=1, function="max"):
-        self.original_shape = None
-        self.size = size
-        self.f = function
         self.a = np.array([])
-        self.z = np.array([])
-    
-    def forward_pass(self, a, z=None):
-        def pool_down(x):
-            feature_map = x
-            size_x, size_y = feature_map.shape
+
+    # 3D tensor --> 3D tensor
+    def forward_pass(self, previous):
+        self.previous = previous
+        b = []
+        z = []
+
+        for k in self.w:
+            height = self.previous.a[0].shape[0] + 2 * self.pad
+            width = self.previous.a[0].shape[1] + 2 * self.pad
             
-            # do pooling for the feature map
-            if self.f == "global_max":
-                a = np.array([np.max(feature_map)], dtype=float)
-            elif self.f == "global_min":
-                a = np.array([np.min(feature_map)], dtype=float)
-            elif self.f == "global_avg":
-                a = np.array([np.average(feature_map)], dtype=float)
-            else:
-                a = np.zeros((size_y - self.size + 1, size_x - self.size + 1))
-                for i in range(0, size_y - self.size + 1):
-                    for j in range(0, size_x - self.size + 1):
-                        region = feature_map[i : i + self.size, j : j + self.size]
-                
-                        if self.f == "max":
-                            a[i, j] = np.max(region)
-                        elif self.f == "min": 
-                            a[i, j] = np.min(region)
-                        elif self.f == "avg": 
-                            a[i, j] = np.average(region)  
-                        else: 
-                            a[i, j] = self.f(region)
-            return a
-        
-        self.original_shape = a.shape
-        
-        if len(a) > 0:
-            self.a = pool_down(a)
-        else:
-            raise ValueError("[a]'s size should not be zero.")
-        if z != None:
-            if z.shape != a.shape:
-                raise ValueError("[z] should match the shape of [a].")
-            self.z = pool_down(z)
-        
+            # This corrects the input boundaries to align with kernel shape,
+            # so that the kernel will cover all the input with the least padding 
+            # room possible.
+            (u, d), (l, r) = align_and_pad((height, width), k[0].shape, self.stride)
+            self.pad_width = (u + self.pad, d + self.pad), (l + self.pad, r + self.pad)
+
+            out = np.sum([cross_corr(x, w, self.stride, self.pad_width) for x, w in zip(previous.a, k)], axis=0)
+            b_n = self.f_b(*out.shape)
+            b.append(b_n)
+            z.append(out + b_n)
+        self.b = np.array(b, dtype=float)        
+        self.z = np.array(z, dtype=float)        
+        self.a = np.array(self.f(z), dtype=float)
         return self.a
 
-    def backward_pass(self, dz):
-        unpooled_map = np.zeros(self.original_shape, dtype=float)
-        for i, y in enumerate(dz):
-            for j, x in enumerate(y):
-                expanded_x = np.full((self.size, self.size), fill_value=x, dtype=float)
-                unpooled_map[i : i + self.size, j : j + self.size] += expanded_x 
-        return unpooled_map
+    def calculate_gradient(self, dz):
+        # calculate the loss gradient with respect to the
+        # weights and the biases for convolutional layer
+        dw = [[cross_corr_transposed(x, dz_n, k, self.stride, self.pad_width) for x in self.previous.a] for k, dz_n in zip(self.kernels, dz)]
+        dw = np.array(dw, dtype=float)
+        db = dz
+        return dw, db
+
+    # 3D tensor <-- 3D tensor
+    def backward_pass(self, dz_next):
+        dz = [[conv_transposed(k, dz_n, x.shape, self.stride, 'full') for k in kernel] for dz_n, x, kernel in zip(dz_next, self.previous.a, self.w)]
+        dz = np.sum(dz, axis=0)
+        return dz
+
+# 3D tensor --> 3D tensor
+class Pooling():
+    def __init__(self, size=(1,1), function="max"):
+        self.size = size
+        self.previous = None
+        
+        # activations
+        self.f = function
+        self.df = None
+        
+        # parameters
+        self.masks = np.array([]) # to distribute the gradient based on each input contribution 
+        self.a = np.array([])
+        self.z = np.array([])
+
+    # 3D tensor --> 3D tensor
+    def forward_pass(self, previous):
+        self.previous = previous
+        masks = []
+        pooled_z = []
+        pooled_a = []
+        n_row, n_col = previous.a[0].shape[0] - self.size[0] + 1, previous.a[0].shape[1] - self.size[1] + 1
+        if n_row < 0 or n_col < 0:
+            raise SystemError(f"A diminished input with shape less than pooling window size is passed ({previous.a[0].shape} < {self.size})")
+        if previous.z.any():
+            for a_2d, z_2d in zip(previous.a, previous.z):
+                # perform pooling to the feature map
+                pooled_2d_z = np.zeros((n_row, n_col))
+                pooled_2d_a = np.zeros((n_row, n_col))
+                bin_mask = np.zeros(a_2d.shape, dtype=bool)
+                for i in range(n_row):
+                    for j in range(n_col):
+                        z_region = z_2d[i : i + self.size[0], j : j + self.size[1]]
+                        a_region = a_2d[i : i + self.size[0], j : j + self.size[1]]
+                
+                        if self.f == "max":
+                            z_target = z_region.max()
+                            a_target = a_region.max()
+                            region_mask = np.where(a_region == a_target, True, False).astype(np.bool)
+                        elif self.f == "min":
+                            z_target = z_region.min()
+                            a_target = a_region.min()
+                            region_mask = np.where(a_region == a_target, True, False).astype(np.bool)
+                        elif self.f == "avg":
+                            z_target = np.average(z_region)
+                            a_target = np.average(a_region)
+                            region_mask = np.full(self.size, True, dtype=np.bool)
+
+                        pooled_2d_z[i, j] = z_target
+                        pooled_2d_a[i, j] = a_target
+                        bin_mask[i : i + self.size[0], j : j + self.size[1]] += region_mask
+                
+                if self.f in ["max", "min"]:
+                    mask = bin_mask.astype(int)
+                elif self.f == "avg":
+                    mask = np.where(bin_mask == True, 1 / self.size, 0).astype(float)
+
+                masks.append(mask)
+                pooled_z.append(pooled_2d_z)
+                pooled_a.append(pooled_2d_a)
+
+            self.z = np.array(pooled_z, dtype=float)
+        else:
+            for a_2d in previous.a:
+                # perform pooling to the feature map
+                pooled_2d_a = np.zeros((n_row, n_col))
+                bin_mask = np.zeros(a_2d.shape, dtype=bool)
+                for i in range(n_row):
+                    for j in range(n_col):
+                        a_region = a_2d[i : i + self.size[0], j : j + self.size[1]]
+                
+                        if self.f == "max":
+                            a_target = a_region.max()
+                            region_mask = np.where(a_region == a_target, True, False).astype(np.bool)
+                        elif self.f == "min":
+                            a_target = a_region.min()
+                            region_mask = np.where(a_region == a_target, True, False).astype(np.bool)
+                        elif self.f == "avg":
+                            a_target = np.average(a_region)
+                            region_mask = np.full(self.size, True, dtype=np.bool)
+
+                        pooled_2d_a[i, j] = a_target
+                        bin_mask[i : i + self.size[0], j : j + self.size[1]] += region_mask
+                
+                if self.f in ["max", "min"]:
+                    mask = bin_mask.astype(int)
+                elif self.f == "avg":
+                    mask = np.where(bin_mask == True, 1 / self.size, 0)
+
+                masks.append(mask)
+                pooled_a.append(pooled_2d_a)
+
+        self.df = previous.df
+        self.masks = masks
+        self.a = np.array(pooled_a, dtype=float)
+        return self.a
+
+    # 3D tensor <-- 3D tensor
+    def backward_pass(self, dz_next):
+        result = []
+        for mask, dz_2d in zip(self.masks, dz_next):
+            n_row, n_col = mask.shape[0] - self.size[0] + 1, mask.shape[1] - self.size[1] + 1
+            distributed_dz = np.zeros(mask.shape)
+            for i in range(n_row):
+                for j in range(n_col):
+                    distributed_dz[i : i + self.size[0], j : j + self.size[1]] += mask[i : i + self.size[0], j : j + self.size[1]] * dz_2d[i, j]
+            result.append(distributed_dz)
+        result = np.array(result, dtype=float)
+        return result
+
+# 3D tensor --> 1D tensor
+class Global_Pooling():
+    def __init__(self, function="max"):        
+        self.previous = None
+        
+        # activations
+        self.f = function
+        self.df = None
+
+        # parameters
+        self.masks = [] # to distribute the gradient based on each input contribution 
+        self.a = []
+        self.z = []
+
+    # 3D tensor --> 1D tensor
+    def forward_pass(self, previous):
+        self.previous = previous
+        self.df = previous.df
+        masks = []
+        pooled_z = []
+        pooled_a = []
+        
+        for a_2d, z_2d in zip(previous.a, previous.z):
+            # perform pooling to the feature map
+            if self.f == "max":
+                z_target = z_2d.max()
+                a_target = a_2d.max()
+                mask = np.where(a_2d == a_2d.max()).astype(int)
+            elif self.f == "min":
+                z_target = z_2d.min()
+                a_target = a_2d.min()
+                mask = np.where(a_2d == a_2d.min()).astype(int)
+            elif self.f == "avg":
+                z_target = np.average(z_2d)
+                a_target = np.average(a_2d)
+                mask = np.full(a_2d.shape, 1 / a_2d.size, dtype=float)
+
+            masks.append(mask)
+            pooled_z.append(z_target)
+            pooled_a.append(a_target)
+
+        self.masks = masks
+        self.z = np.array(pooled_z, dtype=float)
+        self.a = np.array(pooled_a, dtype=float)
+        return self.a
+
+    # 3D tensor <-- 1D tensor
+    def backward_pass(self, dz_next):
+        result = []
+        for mask, dz_2d in zip(self.masks, dz_next):
+            distributed_dz = mask * dz_2d
+            result.append(distributed_dz)
+        return np.array(result, dtype=float)
+
+class Adaptive_Pooling(Pooling):
+    def __init__(self, output_size=(1, 1), function="max"):
+        self.output_size = output_size
+        super().__init__((1, 1), function)
+
+    def forward_pass(self, A, Z=np.array([0]), df=None):
+        self.size = (A.shape[0] - self.output_size[0] + 1, A.shape[1] - self.output_size[1] + 1)
+        return super().forward_pass(A, Z, df)
 
 # Network
 class nn():
@@ -176,78 +350,42 @@ class nn():
                 self.stages.insert(i + 1, Flatten())
             elif isinstance(s, (Conv, Pooling)) and isinstance(sequence[i - 1], (Dense, Flatten)):
                 self.stages.insert(i + 1, Reshape())
-        self.n_stages = len(self.stages)
         self.layers = [s for s in sequence if isinstance(s, (Dense, Conv))]
-        self.n_layers = len(self.layers)
 
         # inform the optimizer of the CNN's structure by
         # passing the number of stages to the optimizer
         if optimizer != None:
-            optimizer.N = self.n_stages
+            optimizer.N = len(self.stages)
 
     def feedforward(self, a):
-        prev_shape = a.shape
         s = self.stages[0]
 
-        if isinstance(s, (Flatten, Conv, Pooling)):
-            a = s.forward_pass(a)
-        
-        elif isinstance(s, Dense):
-            s.a = a.flatten()
-        
-        else: raise EnvironmentError("Your sturcture should start with ConvLayer, DenseLayer, FlattenLayer, ReshapeLayer, or Pooling.")
-        
+        if isinstance(s, Flatten):
+            s.a = a = np.array(a, dtype=float).flatten()
+            s.n = len(s.a)
+        elif isinstance(s, Reshape):
+            s.a = a = np.array(a, dtype=float).reshape(s.shape)
+            s.n = len(s.a)
+        else:
+            # Input(a) works like starting point to the nn if a flatten 
+            # or a reshape layer isn't in that starting point 
+            a = s.forward_pass(Input(a))
+            
         for i, s in enumerate(self.stages[1:]):
             prev_s = self.stages[i]
-            if isinstance(s, (Flatten, Pooling)):
-                a = s.forward_pass(a, prev_s.z)
 
-            elif isinstance(s, Reshape):
+            if isinstance(s, Reshape):
                 if s.shape == -1:
-                    size = 1
-                    for x in prev_shape: size *= x
-                    
-                    ratio = a.size // size + 1
-                    s.shape = prev_shape = (x * ratio for x in prev_shape)
-                a = s.forward_pass(a, prev_s.z)
-            
-            elif isinstance(s, Conv):
-                a = s.forward_pass(a)
-            
-            elif isinstance(s, Dense):
-                # initialize weights and baises
-                if len(s.w) == 0:
-                    n_in = self.stages[i].n
-                    n_out = s.n
-
-                    # register these new pramaters
-                    s.w, s.b = s.f_w(n_in, n_out), s.f_b(n_out)
-                
-                # calculate activations
-                z = s.w @ a + s.b
-
-                a = s.f(z)
-                s.z = z
-                s.a = a
-            
-            prev_shape = a.shape
-
+                    next_stage = self.stages[i + 2]
+                    n_branch = next_stage.branches
+                    d1 = round(a.size / n_branch)
+                    d2 = round(d1 / next_stage.shape[0])
+                    s.shape = (d1, d2, next_stage.shape[0])
+            a = s.forward_pass(prev_s)
         return a
 
     def loss(self, y):
         return self.c(self.output_vector(), y)
-
-    def calculate_dz(self, i, dz):
-        s = self.stages[i]
-        if isinstance(s, (Dense, Conv)): 
-            prev_s = self.stages[i - 1]
-            df = self.layers[self.layers.index(s) - 1].df
-            if isinstance(s, Conv):
-                da = [[w.T @ dz for w in k] for k in s.w]
-            else:
-                da = s.w.T @ dz
-            return da * df(prev_s.z)
-        return s.backward_pass(dz)
 
     def backprop(self, y):
         # we will take the derivitative of the cost associated with 
@@ -266,22 +404,19 @@ class nn():
             dz = self.dc(self.stages[-1], y) * self.df(self.stages[-1].z)
 
         # now, we will work things backward
-        for i in reversed(range(self.n_stages)):
+        for i in reversed(range(len(self.stages))):
             s = self.stages[i]
-            if isinstance(s, (Dense, Conv)):
-                # calculate the loss gradient with respect to 
-                # the weights and the biases
-                dw = np.outer(dz, self.stages[i - 1].a)
-                db = dz
-
+            if s in self.layers:
+                dw, db = s.calculate_gradient(dz)
                 if self.optim != None:
                     dw, db = self.optim.func(dw, db, i)
-
+                
                 dW.append(dw)
                 dB.append(db)
 
-            if i > 1 and len(self.stages[i - 1].z):
-                dz = self.calculate_dz(i, dz)
+            if s.previous.previous:
+                if len(s.previous.z):
+                    dz = s.backward_pass(dz)
 
         dW.reverse()
         dB.reverse()
@@ -319,9 +454,8 @@ class nn():
                 gB = [gb / batch_size for gb in gB]
 
                 # update gradient
-                for i in reversed(range(self.n_layers)):
+                for i in reversed(range(len(self.layers))):
                     l = self.layers[i]
-                    
                     if self.optim == None:
                         # normal SGD
                         l.w -= gW[i] * lr
@@ -377,7 +511,8 @@ class nn():
         last_stage = self.stages[-1].a
         out_index = np.argmax(last_stage)
         return self.possible_outcomes[out_index]
-    
-# 1. do fast convolution
-# 2. train kernel's weight, biases
-# 3. add branching feature
+
+  
+# TODO: train kernel's weight, biases
+# ! implement fast convolution
+# * add branching feature

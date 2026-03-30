@@ -19,7 +19,7 @@ x = x / np.max(x) # normalization
 
 x, t = shuffle(x, t, random_state=42)
 
-x = x.reshape((70000, 28, 28)) # to 2D
+x = x.reshape((70000, 1, 28, 28)) # to 3D
 
 # convert the dataset into one-hot datapoints
 y = []
@@ -33,9 +33,9 @@ print("[mnist] is fetched.")
 
 # neural network setup
 mlp = nn(
-            # Conv(branches=1, size=5, stride=2, padding=1),
-            # Conv(branches=1, depth=1, size=7, stride=3, padding=2),
-            # Pooling(3),
+            Conv(kernels=[(3, 3)], stride=2, padding=1),
+            Conv(kernels=[(7, 7)], stride=3, padding=1),
+            Pooling((3, 3), "max"),
             Flatten(),
             Dense(16, ReLU),
             Dense(16, ReLU),
@@ -60,7 +60,7 @@ loss2, acc2 = mlp.test(xtest, ytest, ttest, batch_size)
 
 print("overall_accuarcy:", np.round(sum(acc2) / len(acc2), 2))
 # plots
-t_axis = [i for i in range(len(xtest) // batch_size + 10)]
+t_axis = [i for i in range(len(xtest) // batch_size) + 2]
 l_axis = [i for i in range(len(acc2))]
 
 plt.axis([0,  epochs - 0.5, 0, 110])
