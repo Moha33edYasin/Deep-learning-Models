@@ -413,9 +413,9 @@ class nn():
                 
                 dW.append(dw)
                 dB.append(db)
-
-            if s.previous.previous:
-                if len(s.previous.z):
+            
+            if s.previous:
+                if s.previous.previous and s.previous.z.any():
                     dz = s.backward_pass(dz)
 
         dW.reverse()
