@@ -31,8 +31,8 @@ y = np.array(y, dtype=float)
 
 print("[mnist] is fetched.")
 
-# neural network setup
-mlp = nn(
+# neural network setups
+cnn = nn(
             Conv(kernels=[(3, 3)], stride=2, padding=1),
             Conv(kernels=[(7, 7)], stride=3, padding=1),
             Pooling((3, 3), "max"),
@@ -52,11 +52,11 @@ xtrain, ytrain, ttrain, xtest, ytest, ttest = x[:n], y[:n], t[:n], x[n:], y[n:],
 
 # train
 print('training...')
-loss1, acc1 = mlp.learn(xtrain, ytrain, ttrain, epochs=epochs, batch_size=batch_size)
+loss1, acc1 = cnn.learn(xtrain, ytrain, ttrain, epochs=epochs, batch_size=batch_size)
 
 # test
 print("testing...")
-loss2, acc2 = mlp.test(xtest, ytest, ttest, batch_size)
+loss2, acc2 = cnn.test(xtest, ytest, ttest, batch_size)
 
 print("overall_accuarcy:", np.round(sum(acc2) / len(acc2), 2))
 # plots
@@ -78,5 +78,5 @@ plt.show()
 # single-input test
 while isinstance(i, int) and i < len(xtest):
     i = int(input(f'index({len(ttest) - 1}):'))
-    mlp.feedforward(xtest[i])
-    print(mlp.output(), ttest[i])
+    cnn.feedforward(xtest[i])
+    print(cnn.output(), ttest[i])
