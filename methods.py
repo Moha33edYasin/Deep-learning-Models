@@ -28,6 +28,7 @@ def align_and_pad(x_shape, k_shape, stride):
     return (u, d), (l, r)
 
 def cross_corr(x, k, stride=1, pad=0, auto_pad=False):
+    global images
     if pad:
         x = np.pad(x, pad_width=pad, mode="constant")
     
@@ -47,33 +48,39 @@ def cross_corr(x, k, stride=1, pad=0, auto_pad=False):
             row.append(np.sum(z))
         feature_map.append(row)
 
+    images += [x, feature_map]
+
     return np.array(feature_map, dtype=float)
 
 def cross_corr_transposed(x, k, output_size, stride=1, pad=0, auto_pad=False):
+    global images
     if pad:
         x = np.pad(x, pad_width=pad, mode="constant")
     
     if auto_pad:
         pad = align_and_pad(x.shape, output_size, stride)
         x = np.pad(x, pad_width=pad, mode='constant')
-
+    
     n_row, n_col = output_size
     shift_row = x.shape[0] - n_row + 1
     shift_col = x.shape[1] - n_col + 1
-    de_feautre_map = []
+    de_feature_map = []
     for i in range(n_row):
         row = []
         for j in range(n_col):
             z = x[i : i + shift_row : stride, j : j + shift_col : stride] * k
             row.append(np.sum(z))
-        de_feautre_map.append(n_row)
+        de_feature_map.append(row)
 
-    return np.array(de_feautre_map, dtype=float)
+    images += [x, de_feature_map]
+
+    return np.array(de_feature_map, dtype=float)
 
 def convolve(x, k, stride=1, pad=0, auto_pad=False):
     return cross_corr(x, k[:, ::-1], stride, pad, auto_pad)
 
 def conv_transposed(x, k, output_size, stride=1, pad=0):
+    global images
     k_h = k.shape[0] * stride
     k_w = k.shape[1] * stride
     n_row, n_col = output_size
@@ -85,18 +92,20 @@ def conv_transposed(x, k, output_size, stride=1, pad=0):
         x = np.pad(x, pad_width=pad, mode="constant")
 
     k = k[::-1, ::-1] # rotate k by 180 degrees
-    row_bound, col_bound = x.shape[0] - k_h, x.shape[1] - k_w # cutoff value
+    row_bound, col_bound = x.shape[0] - k_h + 1, x.shape[1] - k_w + 1 # cutoff value
 
     feature_map = []
     for i in range(n_row):
         row = []
         for j in range(n_col):
-            if i >= row_bound or j >= col_bound:
+            if i > row_bound or j > col_bound:
                 row.append(0)
             else:
                 z = x[i : i + k_h : stride, j : j + k_w : stride] * k
                 row.append(z.sum())
         feature_map.append(row)
+
+    images += [x, feature_map]
 
     return np.array(feature_map, dtype=float)
 
@@ -133,40 +142,40 @@ def sigmoid_derivative(vec):
     return a * (1 - a)
 
 def softmax(vec):
-    vec_exp = np.exp(vec.flatten() - np.max(vec))
-    return vec_exp / np.sum(vec_exp)
+    vec_exp = np.exp(vec - np.max(vec, axis=1, keepdims=True))
+    return vec_exp / np.sum(vec_exp, axis=1, keepdims=True)
 
 def softmax_derivative(vec):
     S = softmax(vec)
-    dS = np.outer(-S, S)
-    diag_indices = np.diag_indices(dS.shape[0])
-    dS[diag_indices] += S
+    dS = np.outer(-S, S) # issue
+    diag_indices = np.diag_indices(dS.shape[1])
+    dS[:, *diag_indices] += S
     return dS
 
 def ReLU(vec):
     if isinstance(vec[0], (np.number, float, int)):
-        return np.array([max(0, node) for node in vec], dtype=vec.dtype)
+        return np.maximum(0, vec)
     return np.array([ReLU(r) for r in vec], dtype=float)
 
-def Leaky_RelU(vec):
+def Leaky_ReLU(vec):
     if isinstance(vec[0], (np.number, float, int)):
-        return np.array([max(0.1 * node, node) for node in vec], dtype=vec.dtype)
-    return np.array([ReLU(r) for r in vec])
+        return np.maximum(0.1 * vec, vec)
+    return np.array([Leaky_ReLU(r) for r in vec])
 
 # Loss functions
 def MSE(o, y):
     erorr = o - y
-    return np.sum(erorr * erorr) / len(y)
+    return np.sum(erorr * erorr, axis=1) / y.shape[0]
 
 def BCE(o, y):
-    return -np.mean(y * np.log(o + 1e-8) + (1 - y) * np.log(1 - o + 1e-8))
+    return -np.mean(y * np.log(o + 1e-8) + (1 - y) * np.log(1 - o + 1e-8), axis=1)
 
 def CCE(o, y):
-    return -np.sum(y * np.log(o))
+    return -np.sum(y * np.log(o + 1e-9), axis=1)
 
 # optimizers
 class Momentem():
-    def __init__(self, beta=0.9, lr=0.1):
+    def __init__(self, beta=0.9, lr=0.001):
         self.NL = 1
         self.lr = lr
         self.β = beta
@@ -188,7 +197,7 @@ class Momentem():
         return self.m_w[l] * self.lr, self.m_b[l] * self.lr 
 
 class Nestrov_A():
-    def __init__(self, beta=0.9, lr=0.1):
+    def __init__(self, beta=0.9, lr=0.001):
         self.NL = 1
         self.lr = lr
         self.β = beta
@@ -214,7 +223,7 @@ class Nestrov_A():
         return dW, dB 
 
 class AdaGrad():
-    def __init__(self, lr=0.1):
+    def __init__(self, lr=0.001):
         self.NL = 1
         self.lr = lr
     
@@ -240,7 +249,7 @@ class AdaGrad():
         return dW, dB
 
 class AdaDelta():
-    def __init__(self, beta=0.9, lr=0.1):
+    def __init__(self, beta=0.9, lr=0.001):
         self.NL = 1
         self.lr = lr
         self.β = beta
@@ -279,7 +288,7 @@ class AdaDelta():
         return dW, dB
 
 class RMSProp():
-    def __init__(self, beta=0.99, lr=0.1):
+    def __init__(self, beta=0.9, lr=0.001):
         self.NL = 1
         self.lr = lr
         self.β = beta
@@ -306,7 +315,7 @@ class RMSProp():
         return dW, dB
 
 class AdaMax():
-    def __init__(self, beta1=0.9, beta2=0.99, lr=0.1):
+    def __init__(self, beta1=0.9, beta2=0.999, lr=0.001):
         self.NL = 1
         self.t, self.lr = 0, lr
         self.β1, self.β2 = beta1, beta2
@@ -323,7 +332,8 @@ class AdaMax():
 
     def func(self, dW, dB, l):
         # increment the time
-        self.t += 1
+        if l == self.N - 1: self.t += 1
+
         # dw
         self.m_w[l] = (self.β1 * self.m_w[l] + (1 - self.β1) * dW)
         self.v_w[l] = (self.β2 * self.v_w[l] + (1 - self.β2) * dW * dW)
@@ -347,7 +357,7 @@ class AdaMax():
         return dW, dB
 
 class Adam():
-    def __init__(self, beta1=0.9, beta2=0.99, lr=0.1):
+    def __init__(self, beta1=0.9, beta2=0.999, lr=0.001):
         self.NL = 1
         self.t, self.lr = 0, lr
         self.β1, self.β2 = beta1, beta2
@@ -364,7 +374,7 @@ class Adam():
     
     def func(self, dW, dB, l):
         # increment the time
-        self.t += 1
+        if l == self.N - 1: self.t += 1
 
         # dw
         self.m_w[l] = (self.β1 * self.m_w[l] + (1 - self.β1) * dW)
@@ -374,7 +384,6 @@ class Adam():
         v_hat = self.v_w[l] / (1 - np.pow(self.β2, self.t))
 
         dW = self.lr * m_hat / (1e-8 + np.sqrt(v_hat))
-        
         # db
         self.m_b[l] = (self.β1 * self.m_b[l] + (1 - self.β1) * dB)
         self.v_b[l] = (self.β2 * self.v_b[l] + (1 - self.β2) * dB * dB)
@@ -383,11 +392,11 @@ class Adam():
         v_hat = self.v_b[l] / (1 - np.pow(self.β2, self.t))
         
         dB = self.lr * m_hat / (1e-8 + np.sqrt(v_hat))
-        
+
         return dW, dB
 
 class nAdam():
-    def __init__(self, beta1=0.9, beta2=0.99, lr=0.1):
+    def __init__(self, beta1=0.9, beta2=0.999, lr=0.001):
         self.NL = 1 
         self.t, self.lr = 0, lr
         self.β1, self.β2 = beta1, beta2
@@ -403,7 +412,8 @@ class nAdam():
         self.m_b, self.v_b = [0] * self.NL, [0] * self.NL
 
     def func(self, dW, dB, l):
-        self.t += 1
+        # increment the time
+        if l == self.N - 1: self.t += 1
 
         # dw
         self.m_w[l] = self.β1 * self.m_w[l] + (1 - self.β1) * dW
@@ -428,7 +438,7 @@ class nAdam():
         return dW, dB
 
 class AMSGrad():
-    def __init__(self, beta1=0.9, beta2=0.99, lr=0.1):
+    def __init__(self, beta1=0.9, beta2=0.999, lr=0.001):
         self.NL = 1
         self.lr = lr
         self.β1, self.β2 = beta1, beta2
@@ -471,7 +481,7 @@ derivatives = {
             sigmoid: sigmoid_derivative,
             softmax: softmax_derivative,
             ReLU: lambda v : (v > 0),
-            Leaky_RelU: lambda v : np.where(v > 0, 1, 0.1),
+            Leaky_ReLU: lambda v : np.where(v > 0, 1, 0.1),
             # loss function : dl/dz (for z the last layer's weighted sum)
             MSE: lambda l,y: 2 * (l.a - y) * l.df(l.z),
             BCE: lambda l,y: l.a - y,

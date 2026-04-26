@@ -25,13 +25,13 @@ class Reshape():
         self.previous = previous
         self.original_shape = previous.a.shape
         self.df = previous.df
-        self.a = previous.a.reshape(self.shape)
-        self.z = previous.z.reshape(self.shape)
+        self.a = previous.a.reshape(previous.a.shape[0], *self.shape)
+        self.z = previous.z.reshape(previous.z.shape[0], *self.shape)
         return self.a
 
     # 3D | 2D | 1D tensor <-- 3D | 2D | 1D tensor
     def backward_pass(self, dz_next):
-        return dz_next.reshape(self.original_shape)
+        return dz_next.reshape(dz_next.shape[0], *self.original_shape)
 
 # 3D | 2D tensor --> 1D tensor
 class Flatten():
@@ -46,18 +46,16 @@ class Flatten():
     # 3D | 2D tensor --> 1D tensor
     def forward_pass(self, previous):
         self.previous = previous
-        self.original_shape = previous.a.shape
+        self.original_shape = previous.a[0].shape
         self.df = previous.df
-        # self.a = np.hstack([a.flatten() for a in A])
-        # self.z = np.hstack([z.flatten() for z in Z])
-        self.a = previous.a.flatten()
-        self.z = previous.z.flatten()
-        self.n = self.a.size
+        self.a = previous.a.reshape(previous.a.shape[0], -1)
+        self.z = previous.z.reshape(previous.z.shape[0], -1)
+        self.n = self.a[0].size
         return self.a
     
     # 3D | 2D tensor <-- 1D tensor
     def backward_pass(self, dz_next):
-        return dz_next.reshape(self.original_shape)
+        return dz_next.reshape(dz_next.shape[0], *self.original_shape)
 
 # 1D tensor --> 1D tensor
 class Dense():
@@ -83,20 +81,28 @@ class Dense():
             self.w, self.b = self.f_w(self.previous.n, self.n), self.f_b(self.n)
         
         # calculate activations
-        self.z = self.w @ previous.a + self.b
+        self.z = previous.a @ self.w.T + self.b
         self.a = self.f(self.z)
         return self.a
 
     def calculate_gradient(self, dz):
         # calculate the loss gradient with respect to 
         # the weights and the biases for dense layer
-        dw = np.outer(dz, self.previous.a)
-        db = dz
-        return dw, db
+        # dw = np.outer(dz, self.previous.a)
+        #  -------dz--------
+        # |
+        # |
+        # a
+        # |
+        # |
+        dW = dz.T @ self.previous.a
+        dB = np.sum(dz, axis=0)
+        return dW, dB
 
     # 1D tensor <-- 1D tensor
-    def backward_pass(self, dz_next):
-        da = self.w.T @ dz_next
+    def backward_pass(self, dz):
+        # da = self.w.T @ dz
+        da = dz @ self.w
         return da * self.previous.df(self.previous.z)
 
 # 3D tensor --> 3D tensor
@@ -117,7 +123,7 @@ class Conv():
         self.f_b = initializer_b
         
         # kernels
-        self.w = [[initializer_w(k[0], k[1]) for _ in range(depth)] for k in kernels]
+        self.w = np.array([[initializer_w(k[0], k[1]) for _ in range(depth)] for k in kernels], dtype=float)
         
         # other parameters
         self.b = np.array([])
@@ -266,16 +272,22 @@ class Pooling():
         for mask, dz_2d in zip(self.masks, dz_next):
             n_row, n_col = mask.shape[0] - self.size[0] + 1, mask.shape[1] - self.size[1] + 1
             distributed_dz = np.zeros(mask.shape)
-            for i in range(n_row):
-                for j in range(n_col):
-                    distributed_dz[i : i + self.size[0], j : j + self.size[1]] += mask[i : i + self.size[0], j : j + self.size[1]] * dz_2d[i, j]
+
+            if len(dz_2d) > 1:
+                for i in range(n_row):
+                    for j in range(n_col):
+                        distributed_dz[i : i + self.size[0], j : j + self.size[1]] += mask[i : i + self.size[0], j : j + self.size[1]] * dz_2d[i, j]
+            else:
+                distributed_dz = mask * dz_2d
+            
             result.append(distributed_dz)
+        
         result = np.array(result, dtype=float)
         return result
 
 # 3D tensor --> 1D tensor
 class Global_Pooling():
-    def __init__(self, function="max"):        
+    def __init__(self, function="max"):
         self.previous = None
         
         # activations
@@ -330,16 +342,16 @@ class Global_Pooling():
 class Adaptive_Pooling(Pooling):
     def __init__(self, output_size=(1, 1), function="max"):
         self.output_size = output_size
-        super().__init__((1, 1), function)
+        super().__init__(function=function)
 
-    def forward_pass(self, A, Z=np.array([0]), df=None):
-        self.size = (A.shape[0] - self.output_size[0] + 1, A.shape[1] - self.output_size[1] + 1)
-        return super().forward_pass(A, Z, df)
+    def forward_pass(self, previous):
+        self.size = (previous.a.shape[0] - self.output_size[0] + 1, previous.a.shape[1] - self.output_size[1] + 1)
+        return super().forward_pass(previous)
 
 # Network
 class nn():
     def __init__(self, *sequence, possible_outcomes=None, cost=None, dcost=None, optimizer=None):
-        self.possible_outcomes = possible_outcomes
+        self.possible_outcomes = np.array(possible_outcomes)
         self.optim = optimizer
         self.c, self.dc = cost, dcost
 
@@ -361,14 +373,14 @@ class nn():
         s = self.stages[0]
 
         if isinstance(s, Flatten):
-            s.a = a = np.array(a, dtype=float).flatten()
-            s.n = len(s.a)
+            s.a = a = a.reshape(a.shape[0], -1)
+            s.n = len(s.a[0])
         elif isinstance(s, Reshape):
-            s.a = a = np.array(a, dtype=float).reshape(s.shape)
-            s.n = len(s.a)
+            s.a = a = a.reshape(a.shape[0], *s.shape)
+            s.n = len(s.a[0])
         else:
             # Input(a) works like starting point to the nn if a flatten 
-            # or a reshape layer isn't in that starting point 
+            # or a reshape layer isn't that starting point 
             a = s.forward_pass(Input(a))
             
         for i, s in enumerate(self.stages[1:]):
@@ -408,6 +420,8 @@ class nn():
             s = self.stages[i]
             if s in self.layers:
                 dw, db = s.calculate_gradient(dz)
+                dw /= y.shape[0]
+                db /= y.shape[0]
                 if self.optim != None:
                     dw, db = self.optim.func(dw, db, i)
                 
@@ -415,7 +429,7 @@ class nn():
                 dB.append(db)
             
             if s.previous:
-                if s.previous.previous and s.previous.z.any():
+                if s.previous.previous and len(s.previous.z):
                     dz = s.backward_pass(dz)
 
         dW.reverse()
@@ -425,36 +439,28 @@ class nn():
     def learn(self, x_data, y_data, targets, lr=0.01, epochs=1, batch_size=1):
         loss_traj, accuracy = [], []
 
-        data = list(zip(x_data, y_data, targets))
-        N = len(data)
-        
+        data = np.array(list(zip(x_data, y_data, targets)), dtype=tuple)
+
         for epoch in range(epochs):
             # backpropagation
-            gW, gB = 0, 0
-            n_correct, loss = 0, 0
-            
-            for i in range(0, N, batch_size):
+            loss, n_correct = 0, 0
+            for i in range(0, data.shape[0], batch_size):
                 batch = data[i : batch_size + i]
                 
                 # shuffle the batch
-                idx = np.random.permutation(len(batch))
-                batch = [batch[i] for i in idx]
+                np.random.default_rng().shuffle(batch)
+                x, y, t = batch[:, 0], batch[:, 1], batch[:, 2]
+                x = np.stack(x)
+                y = np.stack(y)
 
-                for x, y, t in batch:
-                    self.feedforward(x)
-                    loss += self.loss(y)
-                    dW, dB = self.backprop(y)
-                    
-                    gW = [gw + dw for gw, dw in zip(gW, dW)] if gW else dW.copy()
-                    gB = [gb + db for gb, db in zip(gB, dB)] if gB else dB.copy()
+                self.feedforward(x)
+                loss += self.loss(y).sum() / batch_size
+                gW, gB = self.backprop(y)
 
-                    n_correct += int(self.output() == t)
+                n_correct += np.count_nonzero(self.output() == t)
                 
-                gW = [gw / batch_size for gw in gW]
-                gB = [gb / batch_size for gb in gB]
-
                 # update gradient
-                for i in reversed(range(len(self.layers))):
+                for i in range(len(self.layers)):
                     l = self.layers[i]
                     if self.optim == None:
                         # normal SGD
@@ -463,42 +469,40 @@ class nn():
                     else:
                         l.w -= gW[i]
                         l.b -= gB[i]
-
-            # calculate loss and accuracy per batch
+            # calculate loss and accuracy per epoch
             try:
-                acc_percentage = np.round(n_correct / N * 100, 2)
-                loss_percentage = np.round(loss / N * 100, 2)
+                acc_percentage = np.round(n_correct / data.shape[0] * 100, 2)
             except:
                 raise ZeroDivisionError(f"batch_size shouldn't be zero.")
 
-            loss_traj.append(loss_percentage)
+            loss_traj.append(loss)
             accuracy.append(acc_percentage)
-            print(f"accuracy-{epoch + 1}:", f"{acc_percentage}%")
+            print(f"accuracy-per-epoch-{epoch + 1}:", f"{acc_percentage}%")
 
         return loss_traj, accuracy
 
     def test(self, x_data, y_data, targets, batch_size=1):
         loss_traj, accuarcy = [], []
-        data = list(zip(x_data, y_data, targets))
-        for i in range(0, len(x_data), batch_size):
-            batch = data[i : batch_size + i]
-            loss, n_correct = 0, 0
-            for x, y, t in batch:
-                self.feedforward(x)
-                loss += self.loss(y)
-                n_correct += int(self.output() == t)
-            
+        for i in range(0, x_data.shape[0], batch_size):
+            x = x_data[i : batch_size + i]
+            y = y_data[i : batch_size + i]
+            t = targets[i : batch_size + i]
+
+            self.feedforward(x)
+            loss = self.loss(y).sum() / x.shape[0]
+            n_correct = np.count_nonzero(self.output() == t)
+        
             # calculate loss and accuarcy per batch
             try:
-                acc_percentage = np.round(n_correct / len(batch) * 100, 2)
-                loss_percentage = np.round(loss / len(batch) * 100, 2)
+                acc_percentage = np.round(n_correct / x.shape[0] * 100, 2)
             except:
                 raise ZeroDivisionError(f"(batch_size) should not be zero.")
 
-            loss_traj.append(loss_percentage)
+            loss_traj.append(loss)
             accuarcy.append(acc_percentage)
 
-            print(f"accuracy-{i + 1}:", f"{round(acc_percentage, 2)}%")
+            print(f"accuracy-per-batch-{(i // batch_size) + 1}:", f"{round(acc_percentage, 2)}%")
+        print(f"overall_accuracy:", f"{round(sum(accuarcy) / ((i // batch_size) + 1), 2)}%")
         return loss_traj, accuarcy
         
     def set_optimizer(self, optimizer=None):
@@ -509,7 +513,7 @@ class nn():
     
     def output(self):
         last_stage = self.stages[-1].a
-        out_index = np.argmax(last_stage)
+        out_index = last_stage.argmax(axis=1)
         return self.possible_outcomes[out_index]
 
   

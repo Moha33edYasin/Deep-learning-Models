@@ -19,7 +19,7 @@ x = x / np.max(x) # normalization
 
 x, t = shuffle(x, t, random_state=42)
 
-x = x.reshape((70000, 1, 28, 28)) # to 3D
+# x = x.reshape((70000, 1, 28, 28)) # to 3D
 
 # convert the dataset into one-hot datapoints
 y = []
@@ -33,21 +33,21 @@ print("[mnist] is fetched.")
 
 # neural network setups
 cnn = nn(
-            Conv(kernels=[(3, 3)], stride=2, padding=1),
-            Conv(kernels=[(7, 7)], stride=3, padding=1),
-            Pooling((3, 3), "max"),
+            # Conv(kernels=[(3, 3)], stride=2, padding=1),
+            # Conv(kernels=[(7, 7)], stride=3, padding=1),
+            # Pooling((3, 3), "max"),
             Flatten(),
             Dense(16, ReLU),
             Dense(16, ReLU),
             Dense(10, softmax),
             possible_outcomes=['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
             cost= CCE,
-            optimizer= Adam(beta1=0.9, beta2=0.99, lr=0.05)
+            optimizer= Adam(lr=0.001)
             )
 
 # data split
 n = int(0.85 * len(x))
-batch_size, epochs = 325, 8
+batch_size, epochs = 128, 8
 xtrain, ytrain, ttrain, xtest, ytest, ttest = x[:n], y[:n], t[:n], x[n:], y[n:], t[n:]  
 
 # train
@@ -58,15 +58,12 @@ loss1, acc1 = cnn.learn(xtrain, ytrain, ttrain, epochs=epochs, batch_size=batch_
 print("testing...")
 loss2, acc2 = cnn.test(xtest, ytest, ttest, batch_size)
 
-print("overall_accuarcy:", np.round(sum(acc2) / len(acc2), 2))
 # plots
-t_axis = [i for i in range(len(xtest) // batch_size) + 2]
+t_axis = [i for i in range(len(xtest) // batch_size)]
 l_axis = [i for i in range(len(acc2))]
 
 plt.axis([0,  epochs - 0.5, 0, 110])
 plt.xticks(t_axis)
-# plt.plot(t_axis, acc1, color='blue', label='traning_accuracy')
-# plt.plot(t_axis, loss1, color='blue', label='traning_accuracy')
 plt.plot(l_axis, acc2, color='red', label='testing_accuracy')
 plt.plot(l_axis, loss2, color='orange', label='testing_loss', linestyle='--')
 
@@ -76,6 +73,7 @@ plt.title("Model Learning")
 plt.show()
 
 # single-input test
+i = 0
 while isinstance(i, int) and i < len(xtest):
     i = int(input(f'index({len(ttest) - 1}):'))
     cnn.feedforward(xtest[i])
