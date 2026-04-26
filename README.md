@@ -27,21 +27,21 @@ mlp = nn(
         Dense(10, softmax),
         possible_outcomes=['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
         cost= CCE, # cross categorical entropy
-        optimizer= Adam(beta1=0.9, beta2=0.99, lr=0.05)
+        optimizer= Adam(lr=0.001)
     )
 ```
 
 Train the model:  
 ```python
-loss1, acc1 = mlp.learn(xtrain, ytrain, ttrain, epochs=8, batch_size=325)
+loss1, acc1 = mlp.learn(xtrain, ytrain, ttrain, epochs=8, batch_size=128)
 ```
 
 Evaluate on test data:  
 ```python
-loss2, acc2 = mlp.test(xtest, ytest, ttest, batch_size=325)
+loss2, acc2 = mlp.test(xtest, ytest, ttest, batch_size=128)
 ```
 > [!NOTE]
-> The above structure achieved ~0.94 testing accuarcy on MNIST.
+> The above structure achieved ~0.94-0.95 testing accuarcy on MNIST.
 
 > [!WARNING]
 > Do not use convolutional layers (_Conv_), as they are not fully implemented. 
