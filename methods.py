@@ -1,9 +1,5 @@
 import numpy as np
-
-# global statics and variables
-no_local_storage = False
-NAME = __name__.removesuffix(".__init__")
-LOCAL_STORAGE_PATH = f"{NAME}/local_storage"
+from netjet.__init__ import no_local_storage, LOCAL_STORAGE_PATH
 
 # file operations
 def delete(name):
