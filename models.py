@@ -1,9 +1,13 @@
-from Layers import *
-from methods import SGD
+from netjet.Layers import *
+from netjet.methods import SGD, no_local_storage, LOCAL_STORAGE_PATH
 
 # for plotting
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+
+# for copying
+from copy import deepcopy
+
 
 # Network
 class nn():
@@ -18,6 +22,9 @@ class nn():
         self.starter = None
         self.stages = sequence
         self.layers = [s for s in sequence if isinstance(s, (Dense, Conv))]
+
+        self.is_compiled = False
+        self.oneway_pass = False
 
     def compile(self, input_shape, possible_outcomes=None, cost=None, dcost=None, lr=0.01, optimizer=None):
         
@@ -40,7 +47,12 @@ class nn():
         self.input_shape = input_shape
         self.possible_outcomes = np.array(possible_outcomes)
         self.optim = optimizer
+
         self.c, self.dc = cost, dcost
+        if self.c == None:
+            print(f"(!) Warning: No function is specified as a cost function")
+        elif self.dc == None:
+            print(f"(!) Warning: No differential expression is specified for ({self.c.__name__})")
 
         # inform the optimizer of the NN's structure by
         # passing the number of stages to the optimizer
@@ -48,16 +60,107 @@ class nn():
             optimizer.N = len(self.layers)
         else:
             self.optim = SGD(lr)
+            
+        self.is_compiled = True
         print(f"{type(self.optim).__name__} optimization is configured.")
 
         print(f"(*) The network is compiled successfully.       ({perf_counter() - t :.2f}s)\n")
 
+    def copy(self):
+        new_nn = nn(*deepcopy(list(self.stages)))
+        return new_nn
+
+    def copy_from(self, other_nn):
+        for layer, other_layer in zip(self.layers, other_nn.layers):
+            layer.w = other_layer.w.copy()
+            layer.b = other_layer.b.copy()
+
+    def fetch(self, name):
+        global no_local_storage    
+        if no_local_storage:
+            import os
+            os.mkdir(LOCAL_STORAGE_PATH)
+            no_local_storage = False
+
+        try:
+            with open(f"{LOCAL_STORAGE_PATH}/{name}.txt", "r") as f:
+                params = f.read()
+                params = params.replace("[", "")
+
+                for param, layer in zip(params.split("\0"), self.layers):
+                    # upload weights
+                    w, b = param.split("&")
+
+                    shape = [
+                        w.count("]]]"),
+                        w.count("]]", 0, w.find("]]]")) + 1,
+                        w.count("]", 0, w.find("]]")) + 1,
+                        len(w[:w.find("]")].split())
+                    ]
+
+                    shape = [n for n in shape if n > 1]
+                    w = np.array([float(el) for el in w.replace("]", "").split()], dtype=float)
+                    layer.w = w.reshape(*shape)
+
+                    # upload biases
+                    shape = [
+                        b.count("]]]"),
+                        b.count("]]", 0, b.find("]]]")) + 1,
+                        b.count("]", 0, b.find("]]")) + 1,
+                        len(b[:b.find("]")].split())
+                    ]
+
+                    shape = [n for n in shape if n > 1]
+                    b = np.array([float(el) for el in b.replace("]", "").split()], dtype=float)
+                    layer.b = b.reshape(*shape)
+
+                f.close()
+
+        except FileNotFoundError:
+            import os
+            if os.path.isdir(LOCAL_STORAGE_PATH):
+                print("(!) Error: No local storage was not found.")
+                print("(!) Caution: local storage will be created, the second time related operation is touched.")
+                no_local_storage = True
+            else:
+                raise FileNotFoundError(f"No stored parameters with the name ({name})")
+        
+    def save(self, name):
+        global no_local_storage
+        
+        if no_local_storage:
+            import os
+            os.mkdir(LOCAL_STORAGE_PATH)
+            no_local_storage = False
+
+        try:
+            with open(f"{LOCAL_STORAGE_PATH}/{name}.txt", "w") as f:
+                for layer in self.layers: 
+                    f.write(f"{layer.w}&{layer.b}\0")
+                f.close()
+        except FileNotFoundError:
+            print("(!) Error: No local storage was not found.")
+            print("(!) Caution: local storage will be created, the second time related operation is touched.")
+            no_local_storage = True
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
+
+    def set(self, mode=0):
+        if mode in ["backward", "trainable", 0]:
+            self.starter.update_batch_size(self.input_shape[0])
+            self.oneway_pass = False
+        elif mode in ["single-forward", "frozen", 1]: 
+            self.starter.update_batch_size(1)
+            self.oneway_pass = True
+        elif mode in ["forward", "frozen", 2]: 
+            self.starter.update_batch_size(self.input_shape[0])
+            self.oneway_pass = True
+
+        [s.update_batch_size() for s in self.stages]
+        
     def resize_batch(self, batch_size):
         self.input_shape = (
-                batch_size,
-                self.input_shape[1],
-                self.input_shape[2],
-                self.input_shape[3]
+                batch_size, *self.input_shape[1:]
         )        
 
         self.starter.update_batch_size(batch_size)
@@ -65,7 +168,7 @@ class nn():
 
     def feedforward(self, a):
         self.starter.activate(a)
-        return [s.forward_pass() for s in self.stages][-1]
+        return [s.forward_pass() for s in self.stages][-1].copy()
 
     def loss(self, y):
         return self.c(self.output_vector(), y).sum() / y.shape[0]
@@ -75,15 +178,26 @@ class nn():
         ''' we will take the derivitative of the cost associated with 
             a particular datapoint with respect to each neuron in 
             the last layer. '''
+
+        if self.oneway_pass:
+            print("(!) Warning: the network is forward-oriented and cannot be trained")
+            print("             if you want to backpropagte through it, you should use:")
+            print(f"                 {self.__name__}.set(mode=\"backward\")")
+            return
         
         # initialize dz from the last layer
         if self.dc == None:
             try:
                 dz = derivatives[self.c](self.stages[-1], y)
             except:
-                raise ValueError(f"No differential expression is assigned to ({self.c.__name__})")
+                if self.c == None:
+                    raise SystemError(f"No function is specified to as cost function.")
+                elif derivatives.get(self.c) == None:
+                    raise SystemError(f"No differential expression is assigned to ({self.c.__name__})")
+                else:
+                    raise
         else:
-            dz = self.dc(self.stages[-1], y) * self.df(self.stages[-1].z)
+            dz = self.dc(self.stages[-1], y) * self.stages[-1].df(self.stages[-1].z)
         
         i = len(self.layers) - 1
         # now, we will work things backward
@@ -100,10 +214,15 @@ class nn():
                 s.w -= dw
                 s.b -= db
                 i -= 1
-
             dz = dz_next
 
     def learn(self, x_data, y_data, targets, epochs=1, Debug_plot=False):
+        if self.oneway_pass:
+            print("(!) Warning: the network is forward-oriented and cannot be trained")
+            print("             if you want to backpropagte through it, you should use:")
+            print(f"                 {self.__name__}.set(mode=\"backward\")")
+            return
+        
         acc_traj_e = []
         loss_traj_e = []
 

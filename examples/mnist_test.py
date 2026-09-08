@@ -7,9 +7,18 @@ Use all import (the asterisk - *) and import:
 to configure your neural network structure and get full control 
 '''
 
-from models import *
-from methods import *
+import sys
+import os
 
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(current_dir))
+
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+from netjet.models import *
+from netjet.methods import *
 
 def get_mnist():
     # for importing the dataset

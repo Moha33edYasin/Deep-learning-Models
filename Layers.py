@@ -1,6 +1,6 @@
 import numpy as np
-from methods import align_and_pad, derivatives, ReLU, glorot_uniform, zeros 
-from build import cmethods
+from netjet.methods import align_and_pad, derivatives, ReLU, raw_out, glorot_uniform, zeros 
+from netjet.build import cmethods
 from time import perf_counter
 
 ### Allocating Layer ###
@@ -9,6 +9,7 @@ from time import perf_counter
 class Input():
     def __init__(self, input_shape):
         self.previous = None
+        self.next = None
         self.out_shape = input_shape
         self.a = None
         self.z = None
@@ -19,38 +20,36 @@ class Input():
     
     def update_batch_size(self, batch_size):
         self.out_shape = (
-                batch_size,
-                self.out_shape[1],
-                self.out_shape[2],
-                self.out_shape[3]
+                batch_size, *self.out_shape[1:]
         )
 
 # 4D | 3D | 2D tensor --> 4D | 3D | 2D tensor
 class Reshape():
     def __init__(self, shape):
         self.previous = None
+        self.next = None
         self.shape = shape
         self.out_shape = None
         self.df = None
         self.a = None
         self.z = None
+
+    def __call__(self, layer):
+        self.fuse(layer)
+        return self
     
     def fuse(self, previous):
         self.previous = previous
+        previous.next = self
         self.df = previous.df
         self.out_shape = (
-                previous.out_shape[0],
-                self.shape[0],
-                self.shape[1],
-                self.shape[2]
+            previous.out_shape[0],
+            *self.shape
         )
 
     def update_batch_size(self):
         self.out_shape = (
-            self.previous.out_shape[0],
-            self.shape[0],
-            self.shape[1],
-            self.shape[2]
+            self.previous.out_shape[0], *self.shape
         )
 
     # 3D | 2D | 1D tensor --> 3D | 2D | 1D tensor
@@ -59,7 +58,7 @@ class Reshape():
 
         if self.previous.z is not None:
             self.z = self.previous.z.reshape(self.previous.out_shape[0], *self.out_shape)
-        
+                
         return self.a
 
     # 3D | 2D | 1D tensor <-- 3D | 2D | 1D tensor
@@ -70,27 +69,36 @@ class Reshape():
 class Flatten():
     def __init__(self):
         self.previous = None
+        self.next = None
         self.out_shape = None
         self.df = None
         self.n = None
         self.a = None
         self.z = None
 
+    def __call__(self, layer):
+        self.fuse(layer)
+        return self
+            
     def fuse(self, previous):
         self.previous = previous
-        self.n = previous.out_shape[1] * previous.out_shape[2] * previous.out_shape[3]
+        previous.next = self
+
+        n = previous.out_shape[1]
+        for i in range(2, len(previous.out_shape)):
+            n *= previous.out_shape[i]
+        self.n = n
 
         self.out_shape = (
             previous.out_shape[0], 
-            self.n
+            n
         )
 
         self.df = previous.df
 
     def update_batch_size(self):
         self.out_shape = (
-            self.previous.out_shape[0], 
-            self.n
+            self.previous.out_shape[0], self.n
         )
 
     # 3D | 2D tensor --> 1D tensor
@@ -114,15 +122,20 @@ class Dense():
     def __init__(self, n, activation=None, initializer_w=glorot_uniform, initializer_b=zeros):
         self.n = n
         self.previous = None
+        self.next = None
         self.out_shape = None
         self.a = None
         self.w = None
         self.b = None
         self.z = None
-        self.f = activation
-        self.df = derivatives[activation]
+        self.f = activation if activation != None else raw_out
+        self.df = derivatives[self.f]
         self.f_w = initializer_w
         self.f_b = initializer_b
+
+    def __call__(self, layer): 
+        self.fuse(layer)
+        return self
 
     # 1D tensor --> 1D tensor
     def fuse(self, previous):    
@@ -138,7 +151,9 @@ class Dense():
             self.b = self.f_b((self.n,))
 
     def update_batch_size(self):
-        self.out_shape = (self.previous.out_shape[0], self.n)
+        self.out_shape = (
+            self.previous.out_shape[0], self.n
+        )
 
     def forward_pass(self):
         # calculate activations
@@ -175,11 +190,12 @@ class Conv():
 
         # store the previous element to form a hierarchy 
         self.previous = None
+        self.next = None
         self.out_shape = None
 
         # functions
-        self.f = activation
-        self.df = derivatives.get(activation)
+        self.f = activation if activation != None else raw_out
+        self.df = derivatives[self.f]
         self.f_w = initializer_w
         self.f_b = initializer_b
                 
@@ -202,6 +218,10 @@ class Conv():
         self.grad_algorithm = {}
         self.back_algorithm = {}
 
+    def __call__(self, layer):
+        self.fuse(layer)
+        return self
+    
     # 3D tensor --> 3D tensor
     def fuse(self, previous):
 
@@ -354,6 +374,7 @@ class MaxPool():
         self.size = size
         self.stride = stride
         self.previous = None
+        self.next = None
         self.out_shape = None
 
         # activations
@@ -365,6 +386,10 @@ class MaxPool():
 
         # math handler
         self.xp4D = None
+
+    def __call__(self, layer):
+        self.fuse(layer)
+        return self
     
     def fuse(self, previous):
         self.previous = previous
@@ -420,6 +445,7 @@ class GlobalMaxPool(MaxPool):
     def __init__(self):
         self.size = None
         self.previous = None
+        self.next = None
         self.out_shape = None
 
         # activations
@@ -451,6 +477,7 @@ class GlobalMinPool(MinPool):
     def __init__(self):
         self.size = None
         self.previous = None
+        self.next = None
         self.out_shape = None
 
         # activations
@@ -481,6 +508,7 @@ class GlobalAveragePool(AveragePool):
     def __init__(self):
         self.size = None
         self.previous = None
+        self.next = None
         self.out_shape = None
 
         # activations

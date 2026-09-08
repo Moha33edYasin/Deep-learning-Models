@@ -1,5 +1,50 @@
 import numpy as np
 
+# global statics and variables
+no_local_storage = False
+NAME = __name__.removesuffix(".__init__")
+LOCAL_STORAGE_PATH = f"{NAME}/local_storage"
+
+# file operations
+def delete(name):
+    global no_local_storage
+    import os
+    
+    if no_local_storage:
+        os.mkdir(LOCAL_STORAGE_PATH)
+        no_local_storage = False
+
+    file_path = f"{LOCAL_STORAGE_PATH}/{name}.txt"
+    if os.path.exists(file_path):
+        os.remove(file_path)
+        print(f"(*) ({name}) was removed successfully.")
+    else:
+        print(f"(!) ({name}) does not exist.")
+
+def clean_local_storage():
+    global no_local_storage
+
+    if no_local_storage:
+        import os
+        os.mkdir(LOCAL_STORAGE_PATH)
+        no_local_storage = False
+
+    from pathlib import Path
+    dir_path = Path(f"{LOCAL_STORAGE_PATH}")
+    try:
+        for file in dir_path.glob("*"):
+            if file.is_file():
+                file.unlink()
+        print("(*) Local storage is cleanup.")
+    except PermissionError:
+        print("(!) Error: Insufficient permissions to delete some files.")
+    except FileNotFoundError:
+        print("(!) Error: No local storage was not found.")
+        print("(!) Caution: local storage will be created, the second time related operation is touched.")
+        no_local_storage = True
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+
 # math operations
 def align_and_pad(x_shape, k_shape, stride):
     u, d, l, r = 0, 0, 0, 0 # up, down, left, right padding
@@ -48,6 +93,9 @@ def zeros(shape):
     return np.zeros(shape)
 
 # activations
+def raw_out(x):
+    return x
+
 def sigmoid(x):
    return 1 / (1 + np.exp(-x))
 
@@ -61,16 +109,16 @@ def softmax(x):
 
 def softmax_derivative(x):
     S = softmax(x)
-    dS = np.outer(-S, S) # issue
-    diag_indices = np.diag_indices(dS.shape[1])
-    dS[:, *diag_indices] += S
-    return dS
+    return S * (1 - S)
 
 def ReLU(x):
     return np.maximum(0, x)
 
-def Leaky_ReLU(x):
-    return np.maximum(0.1 * x, x)
+def Leaky_ReLU(a=0.1):
+    def L(x):
+        return np.maximum(a * x, x)
+    derivatives[L] = lambda v : np.where(v > 0, 1, a)
+    return L
 
 # Loss functions
 def MSE(o, y):
@@ -82,6 +130,21 @@ def BCE(o, y):
 
 def CCE(o, y):
     return -np.sum(y * np.log(o + 1e-9), axis=1)
+
+def Huber(δ):
+    def L(o, y):
+        a = o - y
+        if abs(a) <= δ:
+            return 1/2 * a**2
+        else:
+            return δ * (abs(a) - 0.5 * δ)
+
+    def L_dash(l, y):
+        a = l.a - y
+        return np.where(np.abs(a) <= δ, a, np.where(a > 0, δ, -δ))
+
+    derivatives[L] = L_dash
+    return L
 
 # optimizers
 class SGD():
@@ -393,12 +456,13 @@ class AMSGrad():
 
 derivatives = {
             # activation function : df/dx (for any x)
+            raw_out : lambda x : 1,
             sigmoid: sigmoid_derivative,
             softmax: softmax_derivative,
             ReLU: lambda v : (v > 0),
-            Leaky_ReLU: lambda v : np.where(v > 0, 1, 0.1),
             # loss function : dl/dz (for z the last layer's weighted sum)
             MSE: lambda l,y: 2 * (l.a - y) * l.df(l.z),
             BCE: lambda l,y: l.a - y,
             CCE: lambda l,y: l.a - y
+            # Huber:
             }
