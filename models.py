@@ -149,7 +149,7 @@ class nn():
         if mode in ["backward", "trainable", 0]:
             self.starter.update_batch_size(self.input_shape[0])
             self.oneway_pass = False
-        elif mode in ["single-forward", "frozen", 1]: 
+        elif mode in ["single-forward", 1]: 
             self.starter.update_batch_size(1)
             self.oneway_pass = True
         elif mode in ["forward", "frozen", 2]: 
