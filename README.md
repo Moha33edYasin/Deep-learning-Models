@@ -28,7 +28,7 @@ This will create the necessary `.pyd` file.
 
 After that, run:  
 ```
-python -m __init__
+python netjet/__init__.py
 ```
 To check that everything is working.  
 
@@ -196,5 +196,5 @@ mlp.copy_from(cnn)  # mlp == cnn (same parameters, same architecture)
 ---
 For more examples, you may experiment with `mnist_test.py` in `examples` and run it using:  
 ```bash
-python examples/mnist_test
+python netjet/examples/mnist_test.py
 ```
