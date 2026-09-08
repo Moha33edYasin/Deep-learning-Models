@@ -113,6 +113,38 @@ cnn = nn(
 > * With `8 epochs`, a `batch size` of `128` and `Adam`, The above structure achieved `~96-97%` testing accuarcy on MNIST (~15s/epoch).  
 > * Convolution and pooling operations are now moderately faster.  
 
+**Use `set` to change the flow of the input and output (or more concretely changing modes).**  
+`0` is default mode, aka. forward-and-backward-pass network ("backward"/"trainable" can also be used).  
+`1` is single-forward pass. very intuitive as it set `batch_size=1` ("single-forward" can also be used).    
+`2` is  forward-only network. Backpropagtion is not possible  ("forward"/"frozen" can also be used).  
+This can be done like this:  
+
+```python
+cnn.set(0) # or cnn.set("backward") / cnn.set("backward")
+cnn.set(2) # or cnn.set("forward") / cnn.set("frozen")
+```
+
+
+---
+# Happy with the result? Save it
+To save use `save` with the `nn` class.
+for the above model, we save it and named it "cnn_for_mnist":
+```python
+cnn.save("cnn_for_mnist")
+```
+
+To get the saving back again or load it into other model, use `fetch`.
+for our model above: 
+```python
+cnn.fetch("cnn_for_mnist") # recover back
+```
+You can also use `copy` to replicate model architecture, and `copy_from` to pull model parameters into other one.
+for our two models above:
+```python
+mlp.copy(cnn)       # mlp contain the same sequence of layers and operations as cnn 
+mlp.copy_from(cnn)  # mlp == cnn (same parameters, same architecture)
+```
+
 ---
 # Built-in Layers
 - Dense Layers: `Dense(number of neuron, activation, weight_initailization, biases_initailization)`  
@@ -129,18 +161,24 @@ cnn = nn(
 - Adaptive min pooling: `AdaptiveMinPool(2d out_shape, stride)`  
 - Adaptive average pooling: `AdaptiveAveragePool(2d out_shape, stride)`
 
+> [!IMPORTANT]
+> **Convolution Naming & Gradient Implementation:**  
+> The names I use for convolution operations in `src/` do not necessarily follow standard terminology.   
+> Additionally, the gradient calculations are derived and implemented manually not following a standard framework implementation. As a result, some of the methods or terminology may appear unconventional or out of place.  
+
 # Built-in initialization techniques
 - He initialization :`he_normal`, `he_uniform`  
 - Glorot initialization: `glorot_normal`, `glorot_uniform`  
 - Zero initialization: `zeros`
  
 # Built-in activation functions
-- `sigmoid`, `softmax`, `ReLU`, `Leaky_ReLU`  
+- `sigmoid`, `softmax`, `ReLU`, `Leaky_ReLU`
 
 # Built-in Cost functions
 - `MSE` : Mean Squared Error  
 - `BCE` : Binary Cross Entropy  
 - `CCE`: Cross Categorical Entropy
+- `Huber(δ)`: Huber, with `δ` being threshold parameter   
 
 # Built-in Optimizers
 - `SGD`, `Momentem`, `Nestrov_A`, `AdaGrad`, `AdaDelta`, `RMSProp`, `AdaMax`, `Adam`, `nAdam`, and `AMSGrad`  
@@ -148,5 +186,5 @@ cnn = nn(
 ---
 For more examples, you may experiment with `mnist_test.py` in `examples` and run it using:  
 ```bash
-python -m examples.mnist_test
+python examples/mnist_test
 ```
