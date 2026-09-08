@@ -138,6 +138,16 @@ for our model above:
 ```python
 cnn.fetch("cnn_for_mnist") # recover back
 ```
+You can delete your saving, using `delete` from `methods` file like this:  
+```python
+from methods import delete
+delete("cnn_for_mnist")
+```
+Or you may delete all saving at once using `clean_local_storage()` from `methods` file.
+
+> [!NOTE]
+> If there was no `local_storage` folder, any of the above operations will create that folder the second time you touch one of them in your code.
+
 You can also use `copy` to replicate model architecture, and `copy_from` to pull model parameters into other one.
 for our two models above:
 ```python
